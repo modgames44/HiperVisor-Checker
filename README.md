@@ -70,6 +70,6 @@ La herramienta verifica en tiempo real el estado de:
 ## 🚀 Instalación
 
 ### Opción A: Descargar ejecutable (Recomendado)
-1. Descarga el archivo `HyperVision_Checker` desde [Releases](https://github.com/tu-usuario/HyperVision-Checker/releases)
+1. Descarga el archivo `HyperVision_Checker` desde [Releases](https://github.com/modgames44/HyperVision-Checker/releases) 
 2. Extrae el contenido en una carpeta
 3. Ejecuta `BypassCheckerWPF.exe` **como Administrador**
