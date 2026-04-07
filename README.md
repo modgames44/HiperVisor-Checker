@@ -75,3 +75,10 @@ La herramienta verifica en tiempo real el estado de:
 1. Descarga el archivo `HyperVision_Checker` desde [Releases](https://github.com/modgames44/HiperVisor-Checker/releases) 
 2. Extrae el contenido en una carpeta
 3. Ejecuta `BypassCheckerWPF.exe` **como Administrador**
+
+## Información del Autor
+
+**Autor:** ModGames44
+**GitHub:** https://github.com/modgames44
+**Proyecto:** HyperVision Checker
+**Año:** 2026
