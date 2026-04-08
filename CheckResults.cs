@@ -18,6 +18,7 @@ public class CheckResults
     public bool SecureBootEnabled { get; set; }
     public bool UefiMode { get; set; }
     public bool IsCompatible { get; set; }
+    public HardwareSecurity HardwareSecurityInfo { get; set; } = new HardwareSecurity();
     public List<string> MissingRequirements { get; set; } = new List<string>();
     
     // Propiedades para HyperVision

@@ -113,13 +113,36 @@ public partial class MainWindow : Window
         var sb = new StringBuilder();
         
         sb.AppendLine("╔════════════════════════════════════════════════════════════════╗");
-        sb.AppendLine("║                    📊 ANÁLISIS DEL SISTEMA                      ║");
+        sb.AppendLine("║                    📊 ANÁLISIS DEL SISTEMA                     ║");
         sb.AppendLine("╚════════════════════════════════════════════════════════════════╝");
         sb.AppendLine();
         
         sb.AppendLine("🖥️  PROCESADOR:");
         sb.AppendLine($"   • Modelo: {results.CpuName}");
         sb.AppendLine($"   • Núcleos: {results.CpuCores} | Hilos: {results.CpuThreads}");
+        sb.AppendLine();
+        
+        // Añade esto dentro del método DisplayResults, después de la sección de HYPERVISION
+        sb.AppendLine("🖥️  INFORMACIÓN AVANZADA DEL CPU:");
+        sb.AppendLine($"   • Marca: {results.HardwareSecurityInfo.Manufacturer}");
+        sb.AppendLine($"   • Modelo: {results.HardwareSecurityInfo.Brand}");
+        sb.AppendLine($"   • Generación: {results.HardwareSecurityInfo.Generation}");
+        sb.AppendLine($"   • Núcleos: {results.HardwareSecurityInfo.Cores} | Hilos Lógicos: {results.HardwareSecurityInfo.LogicalProcessors}");
+        sb.AppendLine($"   • Arquitectura: {results.HardwareSecurityInfo.Architecture}");
+        sb.AppendLine($"   • Versión de Microcódigo: {results.HardwareSecurityInfo.MicrocodeVersion}");
+        sb.AppendLine();
+        sb.AppendLine("🛡️  SEGURIDAD Y RENDIMIENTO:");
+        sb.AppendLine($"   • Soporte de Virtualización: {(results.HardwareSecurityInfo.SupportsVirtualization ? "✅ Activado" : "❌ Desactivado")}");
+        sb.AppendLine($"   • Soporte MBEC: {(results.HardwareSecurityInfo.HasMBEC ? "✅ Sí (Rendimiento optimizado)" : "❌ No (Posible penalización de rendimiento)")}");
+        sb.AppendLine($"   • Impacto Estimado con VBS: {results.HardwareSecurityInfo.PerformanceImpact}");
+        sb.AppendLine($"   • Compatibilidad con Hyper-V: {results.HardwareSecurityInfo.HyperVCompatibilityStatus}");
+        sb.AppendLine();
+        sb.AppendLine("⚠️  VULNERABILIDADES CONOCIDAS:");
+        if (results.HardwareSecurityInfo.KnownVulnerabilities.Count > 0)
+            foreach (var vuln in results.HardwareSecurityInfo.KnownVulnerabilities)
+                sb.AppendLine($"   • {vuln}");
+        else
+        sb.AppendLine("   • No se detectaron vulnerabilidades conocidas relevantes.");
         sb.AppendLine();
         
         sb.AppendLine("💾 MEMORIA Y ALMACENAMIENTO:");
@@ -163,7 +186,7 @@ public partial class MainWindow : Window
         var sb = new StringBuilder();
         
         sb.AppendLine("╔════════════════════════════════════════════════════════════════╗");
-        sb.AppendLine("║              🚀 MÉTODO HYPER VISION - DENUVO                    ║");
+        sb.AppendLine("║              🚀 MÉTODO HYPER VISION - DENUVO                  ║");
         sb.AppendLine("╚════════════════════════════════════════════════════════════════╝");
         sb.AppendLine();
         
@@ -185,7 +208,7 @@ public partial class MainWindow : Window
         }
         
         sb.AppendLine("╔════════════════════════════════════════════════════════════════╗");
-        sb.AppendLine("║                    📝 PASOS A SEGUIR                            ║");
+        sb.AppendLine("║                    📝 PASOS A SEGUIR                          ║");
         sb.AppendLine("╚════════════════════════════════════════════════════════════════╝");
         sb.AppendLine();
         
