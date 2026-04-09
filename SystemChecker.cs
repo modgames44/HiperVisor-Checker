@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace BypassCheckerWPF;
 
@@ -27,9 +28,55 @@ public class SystemChecker
         CheckCredentialGuardUefiLock(results);
         DetermineCompatibility(results);
         GetHardwareSecurityInfo(results);
+        EvaluateCpuRisk(results);
+        
         
         return results;
     }
+
+
+public (bool success, string message) DisableAllFeatures()
+{
+    try
+    {
+        BackupCurrentConfig();
+        DisableVbs();
+        DisableHvci();
+        DisableWindowsHello();
+        DisableSecureBiometrics();
+        DisableSystemGuard();
+        DisableCredentialGuard();
+        DisableKvaShadow();
+        DisableHypervisor();
+
+        return (true, "Características desactivadas correctamente. Se recomienda reiniciar.");
+    }
+    catch (Exception ex)
+    {
+        return (false, $"Error: {ex.Message}");
+    }
+}
+
+public (bool success, string message) EnableAllFeatures()
+{
+    try
+    {
+        EnableVbs();
+        EnableHvci();
+        EnableWindowsHello();
+        EnableSecureBiometrics();
+        EnableSystemGuard();
+        EnableCredentialGuard();
+        EnableKvaShadow();
+        EnableHypervisor();
+
+        return (true, "Todas las protecciones han sido activadas. Se recomienda reiniciar el equipo.");
+    }
+    catch (Exception ex)
+    {
+        return (false, $"Error: {ex.Message}");
+    }
+}
 
     public BypassResults GetBypassMethods(CheckResults systemCheck)
     {
@@ -435,6 +482,480 @@ private bool IsHyperVCompatible(HardwareSecurity cpuInfo)
 {
     // Lógica simplificada: CPUs modernos con soporte de virtualización y MBEC son compatibles
     return cpuInfo.SupportsVirtualization && cpuInfo.HasMBEC;
+}
+
+   // Asegúrate de ponerlo al inicio del archivo si no existe
+
+private void EvaluateCpuRisk(CheckResults results)
+{
+    string cpuName = results.CpuName;
+    string manufacturer = results.HardwareSecurityInfo.Manufacturer;
+    string riesgo = "Bajo";
+    string mensaje = "✅ Sistema compatible sin problemas conocidos.";
+    string solucion = "Sigue los pasos del método HyperVision sin precauciones especiales.";
+
+    // --- Intel ---
+    if (manufacturer == "Intel")
+    {
+        int gen = 0;
+        var m = Regex.Match(cpuName, @"\b(\d+)(?:th|nd|rd|st)\s+Gen\b", RegexOptions.IgnoreCase);
+        if (m.Success) gen = int.Parse(m.Groups[1].Value);
+
+        if (cpuName.Contains("Core 2") || cpuName.Contains("Pentium") || cpuName.Contains("Celeron") || (gen > 0 && gen <= 7))
+        {
+            riesgo = "Alto";
+            mensaje = "🔴 CPU Intel antigua (7ª Gen o anterior). Alto riesgo de BSOD e inestabilidad.";
+            solucion = "❌ No se recomienda usar el método. Si decides hacerlo, actualiza BIOS y desactiva todas las protecciones (VBS, HVCI, Secure Boot, BitLocker). Espera inestabilidad.";
+        }
+        else if (gen == 8 || gen == 9)
+        {
+            riesgo = "Medio";
+            mensaje = "🟡 CPU Intel 8ª/9ª Gen. El driver del hipervisor es experimental; puede fallar o dar bajo rendimiento.";
+            solucion = "🔧 Actualiza la BIOS y los drivers del chipset. Si hay BSOD, desactiva los C-states en la BIOS. Considera usar un driver de hipervisor más reciente.";
+        }
+        else if (gen == 10 || gen == 11)
+        {
+            riesgo = "Bajo";
+            mensaje = "✅ CPU Intel 10ª/11ª Gen. Buena compatibilidad si se siguen los pasos.";
+            solucion = "📋 Sigue los pasos estándar: desactiva VBS/HVCI, Secure Boot, BitLocker. Reinicia con F7 si es necesario.";
+        }
+        else if (gen == 12)
+        {
+            riesgo = "Alto";
+            mensaje = "🔴 CPU Intel 12ª Gen (Alder Lake). Riesgo de que el hipervisor se ejecute en núcleos E.";
+            solucion = "⚙️ Usa Process Lasso para fijar la afinidad del juego a los núcleos P (rendimiento). Alternativamente, desactiva los E-cores en la BIOS. Mantén el scheduler de Windows 11 actualizado.";
+        }
+        else if (gen == 13 || gen == 14)
+        {
+            riesgo = "Alto";
+            mensaje = "🔴 CPU Intel 13ª/14ª Gen. Problemas de estabilidad de fábrica (voltajes).";
+            solucion = "⚠️ Actualiza la BIOS a la versión que incluya el microcódigo 0x12B o superior. Reduce el voltaje del CPU si es necesario. Evita usar el método en estas CPUs hasta tener la BIOS estable.";
+        }
+        else if (cpuName.Contains("Ultra") && cpuName.Contains("200"))
+        {
+            riesgo = "Medio";
+            mensaje = "🟡 CPU Intel Core Ultra 200 series. Por su novedad, pueden existir incompatibilidades.";
+            solucion = "🔍 Busca actualizaciones del método HyperVision específicas para Arrow Lake. Prueba en un sistema de prueba antes de usar en producción.";
+        }
+    }
+    // --- AMD ---
+    else if (manufacturer == "AMD")
+    {
+        int ryzenSeries = 0;
+        var m = Regex.Match(cpuName, @"Ryzen\s+(\d{4})", RegexOptions.IgnoreCase);
+        if (m.Success) ryzenSeries = int.Parse(m.Groups[1].Value);
+
+        if (ryzenSeries == 1000 || ryzenSeries == 2000)
+        {
+            riesgo = "Alto";
+            mensaje = "🔴 AMD Ryzen 1000/2000 (Zen 1/Zen+). Alto riesgo de inestabilidad y BSOD.";
+            solucion = "❌ No recomendado. Si pruebas, actualiza BIOS y drivers del chipset. Desactiva SVM en la BIOS y todas las protecciones de Windows.";
+        }
+        else if (ryzenSeries == 3000)
+        {
+            riesgo = "Medio";
+            mensaje = "🟡 AMD Ryzen 3000 (Zen 2). Sin MBEC completo, penalización de rendimiento.";
+            solucion = "🔧 Actualiza BIOS y drivers del chipset. Desactiva VBS/HVCI. Acepta una pérdida de FPS. Si es inestable, desactiva SVM en la BIOS.";
+        }
+        else if (ryzenSeries == 5000)
+        {
+            riesgo = "Bajo";
+            mensaje = "✅ AMD Ryzen 5000 (Zen 3). Buena compatibilidad.";
+            solucion = "📋 Pasos estándar: desactiva VBS/HVCI, Secure Boot, BitLocker. Asegúrate de que Hyper-V esté desactivado.";
+        }
+        else if (ryzenSeries == 7000 || ryzenSeries == 8000)
+        {
+            riesgo = "Alto";
+            mensaje = "🔴 AMD Ryzen 7000/8000. Bug conocido de reinicios aleatorios con VBS activo.";
+            solucion = "⚠️ Obligatorio desactivar VBS/HVCI y también desactivar la virtualización (SVM) en la BIOS si los reinicios persisten. Mantén la BIOS actualizada (AGESA 1.2.0.x).";
+        }
+        else if (ryzenSeries == 9000)
+        {
+            riesgo = "Bajo";
+            mensaje = "✅ AMD Ryzen 9000 (Zen 5). Potencialmente compatible.";
+            solucion = "🔍 Al ser nueva, puede tener problemas de detección por Denuvo. Busca actualizaciones del bypass. Prueba en modo de prueba primero.";
+        }
+    }
+
+    // --- Ajuste por Windows 11 24H2 ---
+    if (Environment.OSVersion.Version.Build >= 26000)
+    {
+        if (riesgo != "Alto") riesgo = "Medio";
+        mensaje += " ⚠️ Windows 11 24H2 detectado. Desactivar VBS es complejo y puede fallar.";
+        solucion += " En Windows 11 24H2, sigue una guía específica para desactivar VBS mediante registro y política de grupo. Es posible que necesites una reinstalación limpia con VBS desactivado desde el inicio.";
+    }
+
+    results.CpuRiskLevel = riesgo;
+    results.CpuRiskMessage = mensaje;
+    results.CpuRiskSolution = solucion;
+}
+
+
+// ========================================
+// MÉTODOS AUXILIARES PARA REG.EXE
+// ========================================
+
+private bool RunRegCommand(string command)
+{
+    try
+    {
+        var psi = new ProcessStartInfo("reg.exe", command)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            Verb = "runas"
+        };
+        using (var p = Process.Start(psi))
+        {
+            p?.WaitForExit();
+            return p != null && p.ExitCode == 0;
+        }
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+private string RunRegQuery(string command)
+{
+    try
+    {
+        var psi = new ProcessStartInfo("reg.exe", command)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
+        using (var p = Process.Start(psi))
+        {
+            if (p != null)
+            {
+                string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit();
+                return output;
+            }
+        }
+    }
+    catch { }
+    return "";
+}
+
+// ========================================
+// FUNCIONES PARA DESACTIVAR CARACTERÍSTICAS
+// ========================================
+
+public void BackupCurrentConfig()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\ManageVBS\Backup", true))
+        {
+            // Guardar VBS
+            using (var dgKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard"))
+            {
+                int vbs = (dgKey?.GetValue("EnableVirtualizationBasedSecurity") as int?) ?? 0;
+                key.SetValue("VBS", vbs, RegistryValueKind.DWord);
+            }
+            // Guardar HVCI
+            using (var hvciKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"))
+            {
+                int hvci = (hvciKey?.GetValue("Enabled") as int?) ?? 0;
+                key.SetValue("HVCI", hvci, RegistryValueKind.DWord);
+            }
+            // Guardar Hypervisor launch type
+            var psi = new ProcessStartInfo("bcdedit", "/enum {current}")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            using (var p = Process.Start(psi))
+            {
+                if (p != null)
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit();
+                    if (output.Contains("hypervisorlaunchtype") && output.Contains("Auto"))
+                        key.SetValue("Hypervisor", 1, RegistryValueKind.DWord);
+                    else
+                        key.SetValue("Hypervisor", 0, RegistryValueKind.DWord);
+                }
+                else
+                {
+                    key.SetValue("Hypervisor", 0, RegistryValueKind.DWord);
+                }
+            }
+            key.SetValue("BackupDate", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+    }
+    catch { }
+}
+public void DisableVbs()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard", true))
+    {
+        if (key != null)
+            key.SetValue("EnableVirtualizationBasedSecurity", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableHvci()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", true))
+    {
+        if (key != null)
+            key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableWindowsHello()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\WindowsHello", true))
+    {
+        if (key != null)
+            key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableSecureBiometrics()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SecureBiometrics", true))
+    {
+        if (key != null)
+            key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableSystemGuard()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard", true))
+    {
+        if (key != null)
+            key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableCredentialGuard()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Lsa", true))
+    {
+        if (key != null)
+            key.SetValue("LsaCfgFlags", 0, RegistryValueKind.DWord);
+    }
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard", true))
+    {
+        if (key != null)
+            key.SetValue("Enabled", 0, RegistryValueKind.DWord);
+    }
+}
+
+public void DisableKvaShadow()
+{
+    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management", true))
+    {
+        if (key != null)
+        {
+            key.SetValue("FeatureSettingsOverride", 2, RegistryValueKind.DWord);
+            key.SetValue("FeatureSettingsOverrideMask", 3, RegistryValueKind.DWord);
+        }
+    }
+}
+
+public void DisableHypervisor()
+{
+    var psi = new ProcessStartInfo("bcdedit", "/set hypervisorlaunchtype off")
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Verb = "runas"
+    };
+    Process.Start(psi)?.WaitForExit();
+}
+
+
+
+// ========================================
+// FUNCIONES PARA ACTIVAR CARACTERÍSTICAS
+// ========================================
+
+public void EnableVbs()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 1 /f");
+}
+
+public void EnableHvci()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity /v Enabled /t REG_DWORD /d 1 /f");
+}
+
+public void EnableWindowsHello()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\WindowsHello /v Enabled /t REG_DWORD /d 1 /f");
+}
+
+public void EnableSecureBiometrics()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SecureBiometrics /v Enabled /t REG_DWORD /d 1 /f");
+}
+
+public void EnableSystemGuard()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard /v Enabled /t REG_DWORD /d 1 /f");
+}
+
+public void EnableCredentialGuard()
+{
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v LsaCfgFlags /t REG_DWORD /d 2 /f");
+    RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard /v Enabled /t REG_DWORD /d 1 /f");
+}
+
+public void EnableKvaShadow()
+{
+    // Para activar KVA Shadow, eliminamos las claves que lo desactivan
+    RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverride /f");
+    RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverrideMask /f");
+}
+
+public void EnableHypervisor()
+{
+    var psi = new ProcessStartInfo("bcdedit", "/set hypervisorlaunchtype auto")
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Verb = "runas"
+    };
+    Process.Start(psi)?.WaitForExit();
+}
+
+// ========================================
+// REVERTIR CAMBIOS (RESTAURAR BACKUP)
+// ========================================
+
+public (bool success, string message) RestoreFromBackup()
+{
+    try
+    {
+        // Verificar si existe backup
+        string backupCheck = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup");
+        if (string.IsNullOrEmpty(backupCheck) || backupCheck.Contains("Error"))
+        {
+            return (false, "No se encontró ningún backup previo. Usa 'Guardar Backup' primero o desactiva las características manualmente.");
+        }
+
+        // Leer valores del backup
+        string vbsValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v VBS");
+        string hvciValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v HVCI");
+        string hypervisorValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v Hypervisor");
+
+        // Restaurar VBS
+        if (vbsValue.Contains("0x1"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 1 /f");
+        else
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 0 /f");
+
+        // Restaurar HVCI
+        if (hvciValue.Contains("0x1"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity /v Enabled /t REG_DWORD /d 1 /f");
+        else
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity /v Enabled /t REG_DWORD /d 0 /f");
+
+        // Restaurar Hypervisor (bcdedit)
+        if (hypervisorValue.Contains("0x1"))
+        {
+            var psi = new ProcessStartInfo("bcdedit", "/set hypervisorlaunchtype auto")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                Verb = "runas"
+            };
+            Process.Start(psi)?.WaitForExit();
+        }
+        else
+        {
+            var psi = new ProcessStartInfo("bcdedit", "/set hypervisorlaunchtype off")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                Verb = "runas"
+            };
+            Process.Start(psi)?.WaitForExit();
+        }
+
+        // También restaurar Windows Hello, SecureBiometrics, SystemGuard, CredentialGuard y KVA Shadow
+        // Nota: En un backup completo se guardarían también esos valores. Por simplicidad, los activamos/desactivamos según lógica.
+        // Para una restauración completa, leemos los valores si existen.
+        string whValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v WindowsHello");
+        if (whValue.Contains("0x1"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\WindowsHello /v Enabled /t REG_DWORD /d 1 /f");
+        else if (whValue.Contains("0x0"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\WindowsHello /v Enabled /t REG_DWORD /d 0 /f");
+
+        string sbValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v SecureBiometrics");
+        if (sbValue.Contains("0x1"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SecureBiometrics /v Enabled /t REG_DWORD /d 1 /f");
+        else if (sbValue.Contains("0x0"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SecureBiometrics /v Enabled /t REG_DWORD /d 0 /f");
+
+        string sgValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v SystemGuard");
+        if (sgValue.Contains("0x1"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard /v Enabled /t REG_DWORD /d 1 /f");
+        else if (sgValue.Contains("0x0"))
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard /v Enabled /t REG_DWORD /d 0 /f");
+
+        string cgValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v CredentialGuard");
+        if (cgValue.Contains("0x1"))
+        {
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v LsaCfgFlags /t REG_DWORD /d 2 /f");
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard /v Enabled /t REG_DWORD /d 1 /f");
+        }
+        else if (cgValue.Contains("0x0"))
+        {
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\Lsa /v LsaCfgFlags /t REG_DWORD /d 0 /f");
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard /v Enabled /t REG_DWORD /d 0 /f");
+        }
+
+        // KVA Shadow: si en backup existe KVAShadow = 1, eliminamos las claves; si es 0, las añadimos.
+        string kvaValue = RunRegQuery("query HKLM\\SOFTWARE\\ManageVBS\\Backup /v KVAShadow");
+        if (kvaValue.Contains("0x1"))
+        {
+            RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverride /f");
+            RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverrideMask /f");
+        }
+        else if (kvaValue.Contains("0x0"))
+        {
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverride /t REG_DWORD /d 2 /f");
+            RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverrideMask /t REG_DWORD /d 3 /f");
+        }
+
+        return (true, "Configuración restaurada desde backup. Se recomienda reiniciar.");
+    }
+    catch (Exception ex)
+    {
+        return (false, $"Error al restaurar: {ex.Message}");
+    }
+}
+
+public void SetOneTimeAdvancedBoot()
+{
+    var psi = new ProcessStartInfo("bcdedit", "/set {current} onetimeadvancedoptions on")
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Verb = "runas"
+    };
+    Process.Start(psi)?.WaitForExit();
+}
+
+public void RebootSystem()
+{
+    var psi = new ProcessStartInfo("shutdown", "/r /t 0")
+    {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Verb = "runas"
+    };
+    Process.Start(psi);
 }
 
 }

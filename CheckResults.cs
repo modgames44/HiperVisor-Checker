@@ -29,4 +29,7 @@ public class CheckResults
     public bool HasVbsUefiLock { get; set; }
     public bool HasCredGuardUefiLock { get; set; }
     public List<string> IncompatibleDriversList { get; set; } = new List<string>();
+    public string CpuRiskLevel { get; set; } = "Desconocido";   // "Alto", "Medio", "Bajo"
+    public string CpuRiskMessage { get; set; } = "";
+    public string CpuRiskSolution { get; set; } = "";   // <-- Línea nueva
 }
