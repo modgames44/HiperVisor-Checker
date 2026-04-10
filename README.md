@@ -46,7 +46,7 @@ Todo ello con una **interfaz moderna, oscura y fácil de usar**.
 
 ## 🖼️ Captura de pantalla
 
-<img width="1183" height="1195" alt="image" src="https://github.com/user-attachments/assets/4dfc135c-8515-4400-94ea-78d4e9fce99e" />
+<img width="1183" height="1190" alt="image" src="https://github.com/user-attachments/assets/38013fd0-26ae-42ba-8928-25fdbb716f37" />
 
 *La interfaz muestra estadísticas en tiempo real y un área de resultados con formato de tabla.*
 
