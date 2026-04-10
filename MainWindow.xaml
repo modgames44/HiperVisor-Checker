@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="HyperVision Checker - Análisis de Seguridad" 
-        Height="700" Width="1200"
+        Height="1200" Width="1200"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E2E">
     
@@ -124,13 +124,14 @@
            Width="1100">
             <Button x:Name="btnCheck" Content="🔍 Verificar Sistema" Style="{StaticResource ModernButton}" Background="#7C3AED" Click="btnCheck_Click" Width="160"/>
             <Button x:Name="btnBypass" Content="⚡ Verificar Bypass" Style="{StaticResource ModernButton}" Background="#8B5CF6" Click="btnBypass_Click" Width="160"/>
-            <Button x:Name="btnCompatibilityTable" Content="📋 Tabla de Compatibilidad" Style="{StaticResource ModernButton}" Background="#F59E0B" Click="btnCompatibilityTable_Click" Width="200"/>
             <Button x:Name="btnDisableAll" Content="⚡ Desactivar Todo" Style="{StaticResource ModernButton}" Background="#EF4444" Click="btnDisableAll_Click" Width="160"/>
-            <Button x:Name="btnEnableAll" Content="🔒 Activar Todo" Style="{StaticResource ModernButton}" Background="#10B981" Click="btnEnableAll_Click" Width="160"/>
             <Button x:Name="btnRevert" Content="🔄 Revertir Cambios" Style="{StaticResource ModernButton}" Background="#F59E0B" Click="btnRevert_Click" Width="160"/>
+            <Button x:Name="btnEnableAll" Content="🔒 Activar Todo" Style="{StaticResource ModernButton}" Background="#10B981" Click="btnEnableAll_Click" Width="160"/>
             <Button x:Name="btnF7Reboot" Content="🔁 Reinicio F7" Style="{StaticResource ModernButton}" Background="#8B5CF6" Click="btnF7Reboot_Click" Width="140"/>
+            <Button x:Name="btnCompatibilityTable" Content="📋 Tabla de Compatibilidad" Style="{StaticResource ModernButton}" Background="#F59E0B" Click="btnCompatibilityTable_Click" Width="200"/>
             <Button x:Name="btnClear" Content="🗑️ Limpiar" Style="{StaticResource ModernButton}" Background="#6B7280" Click="btnClear_Click" Width="120"/>
         </WrapPanel>
+            
         
         <!-- Área de resultados -->
         <Border Grid.Row="3" 
