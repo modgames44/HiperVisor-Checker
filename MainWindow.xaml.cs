@@ -519,4 +519,31 @@ private void btnF7Reboot_Click(object sender, RoutedEventArgs e)
         _checker.RebootSystem();
     }
 }
+
+private void btnShowStatus_Click(object sender, RoutedEventArgs e)
+{
+    txtResults.Text = "";
+    lblStatus.Text = "📊 Obteniendo estado detallado...";
+    try
+    {
+        string status = _checker.GetSystemStatus();
+        txtResults.Text = status;
+        lblStatus.Text = "✅ Estado actualizado";
+    }
+    catch (Exception ex)
+    {
+        txtResults.Text = $"Error: {ex.Message}";
+        lblStatus.Text = "❌ Error al obtener estado";
+    }
+}
+
+private void btnCustomize_Click(object sender, RoutedEventArgs e)
+{
+    var customizeWindow = new CustomizeWindow(_checker);
+    customizeWindow.Owner = this;
+    customizeWindow.ShowDialog();
+    
+    // No se refresca automáticamente
+}
+
 }

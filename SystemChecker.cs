@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace BypassCheckerWPF;
 
@@ -750,17 +751,6 @@ public void DisableCredentialGuard()
     }
 }
 
-public void DisableKvaShadow()
-{
-    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management", true))
-    {
-        if (key != null)
-        {
-            key.SetValue("FeatureSettingsOverride", 2, RegistryValueKind.DWord);
-            key.SetValue("FeatureSettingsOverrideMask", 3, RegistryValueKind.DWord);
-        }
-    }
-}
 
 public void DisableHypervisor()
 {
@@ -810,12 +800,6 @@ public void EnableCredentialGuard()
     RunRegCommand(@"add HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard /v Enabled /t REG_DWORD /d 1 /f");
 }
 
-public void EnableKvaShadow()
-{
-    // Para activar KVA Shadow, eliminamos las claves que lo desactivan
-    RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverride /f");
-    RunRegCommand(@"delete HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management /v FeatureSettingsOverrideMask /f");
-}
 
 public void EnableHypervisor()
 {
@@ -956,6 +940,484 @@ public void RebootSystem()
         Verb = "runas"
     };
     Process.Start(psi);
+}
+
+// ========================================
+// VER ESTADO (OPCIÓN 1 DEL SCRIPT)
+// ========================================
+
+public string GetSystemStatus()
+{
+    var sb = new StringBuilder();
+
+    // Obtener información del sistema operativo
+    string osVersion = GetOSVersion();
+    string osBuild = GetOSBuild();
+    string osArch = Environment.Is64BitOperatingSystem ? "x64" : "x86";
+
+    ;
+    sb.AppendLine("                     📊 ESTADO DEL SISTEMA                        ");
+    sb.AppendLine();
+    sb.AppendLine("🖥️  SISTEMA OPERATIVO:");
+    sb.AppendLine($"   • Versión: {osVersion}");
+    sb.AppendLine($"   • Build: {osBuild}");
+    sb.AppendLine($"   • Arquitectura: {osArch}");
+    sb.AppendLine();
+
+    // Anti-cheats
+    sb.AppendLine("⚠️  ANTI-CHEATS DETECTADOS:");
+    var antiCheats = DetectAntiCheats();
+    if (antiCheats.Count > 0)
+    {
+        foreach (var ac in antiCheats)
+            sb.AppendLine($"   • {ac}");
+        sb.AppendLine("   Nota: Pueden bloquear controladores sin firma.");
+    }
+    else
+        sb.AppendLine("   • No se detectaron anti-cheats.");
+    sb.AppendLine();
+
+    // Smart App Control
+    string sacStatus = GetSmartAppControlStatus();
+    if (!string.IsNullOrEmpty(sacStatus))
+        sb.AppendLine($"🛡️  Smart App Control: {sacStatus}");
+    sb.AppendLine();
+
+    // Virtualización en BIOS
+    bool virtEnabled = IsVirtualizationEnabled();
+    sb.AppendLine($"🖥️  Virtualización (VT-x/AMD-V): {(virtEnabled ? "✅ Habilitada en BIOS" : "❌ NO habilitada en BIOS")}");
+    sb.AppendLine();
+
+    // UEFI Locks
+    var uefiLocks = GetUefiLocks();
+    if (uefiLocks.Count > 0)
+    {
+        sb.AppendLine("🔒 UEFI LOCKS DETECTADOS:");
+        foreach (var lockInfo in uefiLocks)
+            sb.AppendLine($"   • {lockInfo}");
+        sb.AppendLine();
+    }
+
+    // BitLocker
+    bool bitlockerActive = IsBitLockerActive();
+    sb.AppendLine($"💾 BitLocker: {(bitlockerActive ? "⚠️ ACTIVO en unidad del sistema" : "✅ Inactivo")}");
+    if (bitlockerActive)
+        sb.AppendLine("   • Se suspenderá automáticamente al reiniciar en modo avanzado.");
+    sb.AppendLine();
+
+    // Backup existente
+    bool backupExists = CheckBackupExists();
+    sb.AppendLine($"💾 Respaldo guardado: {(backupExists ? "✅ Sí" : "❌ No")}");
+    if (backupExists)
+    {
+        string backupDate = GetBackupDate();
+        if (!string.IsNullOrEmpty(backupDate))
+            sb.AppendLine($"   • Fecha del respaldo: {backupDate}");
+    }
+    sb.AppendLine();
+
+    
+    sb.AppendLine("              CARACTERÍSTICAS DE SEGURIDAD");
+    sb.AppendLine();
+
+    // Estado de cada característica
+    sb.AppendLine(FormatFeatureStatus("VBS (Virtualization-based Security)", IsVbsEnabled()));
+    sb.AppendLine(FormatFeatureStatus("HVCI (Memory Integrity)", IsHvciEnabled()));
+    sb.AppendLine(FormatFeatureStatus("Windows Hello Protection", IsWindowsHelloEnabled()));
+    sb.AppendLine(FormatFeatureStatus("Enhanced Sign-in Security (SecureBiometrics)", IsSecureBiometricsEnabled()));
+    sb.AppendLine(FormatFeatureStatus("System Guard Secure Launch", IsSystemGuardEnabled()));
+    sb.AppendLine(FormatFeatureStatus("Credential Guard", IsCredentialGuardEnabled()));
+    sb.AppendLine(FormatFeatureStatus("KVA Shadow (Meltdown Mitigation)", IsKvaShadowEnabled()));
+    sb.AppendLine(FormatFeatureStatus("Windows Hypervisor", IsHypervisorEnabled()));
+
+    return sb.ToString();
+}
+
+// Métodos auxiliares (colócalos dentro de la clase SystemChecker)
+
+private string GetOSVersion()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+        {
+            string productName = key?.GetValue("ProductName")?.ToString() ?? "Windows";
+            string releaseId = key?.GetValue("ReleaseId")?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(releaseId))
+                return $"{productName} versión {releaseId}";
+            return productName;
+        }
+    }
+    catch { return "Desconocido"; }
+}
+
+private string GetOSBuild()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+        {
+            string build = key?.GetValue("CurrentBuild")?.ToString() ?? "";
+            string ubr = key?.GetValue("UBR")?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(ubr))
+                return $"{build}.{ubr}";
+            return build;
+        }
+    }
+    catch { return "Desconocido"; }
+}
+
+private List<string> DetectAntiCheats()
+{
+    var list = new List<string>();
+    string[] paths = {
+        @"C:\Program Files\FACEIT AC",
+        @"C:\Program Files\EasyAntiCheat",
+        @"C:\Program Files\EasyAntiCheat_EOS",
+        @"C:\Program Files\BattlEye",
+        @"C:\Program Files\Riot Vanguard",
+        @"C:\Program Files\EAC",
+        @"C:\Program Files (x86)\FACEIT AC",
+        @"C:\Program Files (x86)\EasyAntiCheat",
+        @"C:\Program Files (x86)\BattlEye",
+        @"C:\Program Files (x86)\Riot Vanguard"
+    };
+    foreach (string path in paths)
+    {
+        if (Directory.Exists(path))
+        {
+            string name = Path.GetFileName(path);
+            if (!list.Contains(name))
+                list.Add(name);
+        }
+    }
+    return list;
+}
+
+private string GetSmartAppControlStatus()
+{
+    if (Environment.OSVersion.Version.Build < 22621) return "";
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Policy"))
+        {
+            int? state = key?.GetValue("VerifiedAndReputablePolicyState") as int?;
+            if (state == 1) return "✅ ACTIVADO (puede bloquear aplicaciones)";
+            if (state == 2) return "⚠️ EN EVALUACIÓN (puede activarse solo)";
+            return "❌ Inactivo";
+        }
+    }
+    catch { return "No determinado"; }
+}
+
+private bool IsVirtualizationEnabled()
+{
+    bool virtEnabled = false;
+
+    // 1. Verificar mediante WMI
+    try
+    {
+        using (var searcher = new ManagementObjectSearcher("SELECT VirtualizationFirmwareEnabled FROM Win32_Processor"))
+        {
+            foreach (var obj in searcher.Get())
+            {
+                var val = obj["VirtualizationFirmwareEnabled"];
+                if (val != null && Convert.ToBoolean(val))
+                    virtEnabled = true;
+                break;
+            }
+        }
+    }
+    catch { }
+
+    // 2. Verificar mediante systeminfo
+    if (!virtEnabled)
+    {
+        try
+        {
+            using (var process = new Process())
+            {
+                process.StartInfo.FileName = "systeminfo";
+                process.StartInfo.Arguments = " | findstr /C:\"Virtualización\"";
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.CreateNoWindow = true;
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                if (output.Contains("Sí") || output.Contains("Enabled"))
+                    virtEnabled = true;
+            }
+        }
+        catch { }
+    }
+
+    // 3. Verificar mediante el registro de DeviceGuard
+    if (!virtEnabled)
+    {
+        try
+        {
+            using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard"))
+            {
+                if (key != null)
+                {
+                    var hypervisorEnforced = key.GetValue("HypervisorEnforcedCodeIntegrity");
+                    if (hypervisorEnforced != null && Convert.ToInt32(hypervisorEnforced) == 1)
+                        virtEnabled = true;
+                }
+            }
+        }
+        catch { }
+    }
+
+    // 4. Si VBS o HVCI están activados, la virtualización está activada obligatoriamente
+    if (!virtEnabled)
+    {
+        if (IsVbsEnabled() || IsHvciEnabled())
+            virtEnabled = true;
+    }
+
+    return virtEnabled;
+}
+
+private List<string> GetUefiLocks()
+{
+    var locks = new List<string>();
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard"))
+        {
+            if (key?.GetValue("Locked") as int? == 1)
+                locks.Add("VBS bloqueada por firmware");
+        }
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"))
+        {
+            if (key?.GetValue("Locked") as int? == 1)
+                locks.Add("HVCI bloqueada por firmware");
+        }
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Lsa"))
+        {
+            if (key?.GetValue("LsaCfgFlags") as int? == 2)
+                locks.Add("Credential Guard bloqueada por firmware");
+        }
+    }
+    catch { }
+    return locks;
+}
+
+private bool IsBitLockerActive()
+{
+    try
+    {
+        using (var searcher = new ManagementObjectSearcher("SELECT ProtectionStatus FROM Win32_EncryptableVolume"))
+        {
+            foreach (var obj in searcher.Get())
+            {
+                return Convert.ToInt32(obj["ProtectionStatus"]) == 1;
+            }
+        }
+    }
+    catch { }
+    return false;
+}
+
+private bool CheckBackupExists()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\ManageVBS\Backup"))
+        {
+            return key != null;
+        }
+    }
+    catch { return false; }
+}
+
+private string GetBackupDate()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\ManageVBS\Backup"))
+        {
+            return key?.GetValue("BackupDate")?.ToString() ?? "";
+        }
+    }
+    catch { return ""; }
+}
+
+private string FormatFeatureStatus(string name, bool isEnabled)
+{
+    string status = isEnabled ? "✅ ACTIVO" : "❌ INACTIVO";
+    return $"• {name}: {status}";
+}
+
+// Métodos para leer cada característica (algunos ya los tienes, pero los renombramos para claridad)
+
+public bool IsVbsEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard"))
+        {
+            return (key?.GetValue("EnableVirtualizationBasedSecurity") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool IsHvciEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"))
+        {
+            return (key?.GetValue("Enabled") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool IsWindowsHelloEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\WindowsHello"))
+        {
+            return (key?.GetValue("Enabled") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool IsSecureBiometricsEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SecureBiometrics"))
+        {
+            return (key?.GetValue("Enabled") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool IsSystemGuardEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\SystemGuard"))
+        {
+            return (key?.GetValue("Enabled") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool IsCredentialGuardEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Lsa"))
+        {
+            if ((key?.GetValue("LsaCfgFlags") as int?) == 2)
+                return true;
+        }
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\CredentialGuard"))
+        {
+            return (key?.GetValue("Enabled") as int?) == 1;
+        }
+    }
+    catch { return false; }
+}
+
+public bool EnableKvaShadow()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management", true))
+        {
+            if (key == null) return false;
+            
+            bool changed = false;
+            if (key.GetValue("FeatureSettingsOverride") != null)
+            {
+                key.DeleteValue("FeatureSettingsOverride");
+                changed = true;
+            }
+            if (key.GetValue("FeatureSettingsOverrideMask") != null)
+            {
+                key.DeleteValue("FeatureSettingsOverrideMask");
+                changed = true;
+            }
+            return changed; // Si no había valores, también se considera éxito (ya estaba activado)
+        }
+    }
+    catch (Exception ex)
+    {
+        Debug.WriteLine($"Error al activar KVA Shadow: {ex.Message}");
+        return false;
+    }
+}
+
+public bool DisableKvaShadow()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management", true))
+        {
+            if (key == null) return false;
+            
+            key.SetValue("FeatureSettingsOverride", 2, RegistryValueKind.DWord);
+            key.SetValue("FeatureSettingsOverrideMask", 3, RegistryValueKind.DWord);
+            return true;
+        }
+    }
+    catch (Exception ex)
+    {
+        Debug.WriteLine($"Error al desactivar KVA Shadow: {ex.Message}");
+        return false;
+    }
+}
+
+public bool IsKvaShadowEnabled()
+{
+    try
+    {
+        using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"))
+        {
+            int? overrideVal = key?.GetValue("FeatureSettingsOverride") as int?;
+            int? maskVal = key?.GetValue("FeatureSettingsOverrideMask") as int?;
+            // Si ambas claves existen y tienen los valores 2 y 3 -> INACTIVO
+            if (overrideVal == 2 && maskVal == 3)
+                return false;
+            return true; // En cualquier otro caso -> ACTIVO
+        }
+    }
+    catch { return true; }
+}
+
+public bool IsHypervisorEnabled()
+{
+    try
+    {
+        var psi = new ProcessStartInfo("bcdedit", "/enum {current}")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
+        using (var p = Process.Start(psi))
+        {
+            if (p != null)
+            {
+                string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit();
+                return output.Contains("hypervisorlaunchtype") && output.Contains("Auto");
+            }
+        }
+    }
+    catch { }
+    return false;
 }
 
 }
