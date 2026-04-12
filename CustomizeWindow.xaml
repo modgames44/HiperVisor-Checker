@@ -7,7 +7,6 @@
         Background="#1E1E2E">
     
     <Window.Resources>
-        <!-- Colores necesarios -->
         <SolidColorBrush x:Key="TextColor" Color="#E4E4E7"/>
         <SolidColorBrush x:Key="TextMutedColor" Color="#A1A1AA"/>
         
@@ -67,7 +66,10 @@
             </StackPanel>
         </ScrollViewer>
         
+        <!-- Botones de reinicio y cierre -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button x:Name="btnRebootNormal" Content="🔄 Reinicio normal" Click="btnRebootNormal_Click" Width="120" Margin="0,0,10,0"/>
+            <Button x:Name="btnRebootAdvanced" Content="🔁 Reinicio avanzado (F7)" Click="btnRebootAdvanced_Click" Width="160" Margin="0,0,10,0"/>
             <Button x:Name="btnClose" Content="Cerrar" Click="btnClose_Click" Width="100"/>
         </StackPanel>
     </Grid>

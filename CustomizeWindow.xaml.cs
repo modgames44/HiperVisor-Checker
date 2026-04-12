@@ -51,7 +51,7 @@ public partial class CustomizeWindow : Window
                 () => _checker.DisableCredentialGuard()),
             
             new FeatureControl("KVA Shadow (Meltdown Mitigation)", 
-                () => _checker.IsKvaShadowEnabled(),  // ← método de lectura
+                () => _checker.IsKvaShadowEnabled(),
                 () => _checker.EnableKvaShadow(), 
                 () => _checker.DisableKvaShadow()),
             
@@ -105,34 +105,28 @@ public partial class CustomizeWindow : Window
         }
     }
 
+    // Ejecuta la acción directamente sin preguntar, y actualiza el estado visual
     private void ToggleFeature(FeatureControl feature, bool enable, TextBlock statusText)
     {
-        string action = enable ? "activar" : "desactivar";
-        var result = MessageBox.Show($"¿Deseas {action} la característica '{feature.Name}'?",
-                                     "Confirmar cambio",
-                                     MessageBoxButton.YesNo,
-                                     MessageBoxImage.Question);
-        if (result == MessageBoxResult.Yes)
-        {
-            if (enable)
-                feature.EnableAction();
-            else
-                feature.DisableAction();
+        if (enable)
+            feature.EnableAction();
+        else
+            feature.DisableAction();
 
-            // Actualizar estado visual
-            statusText.Text = feature.IsEnabled() ? "✅ ACTIVO" : "❌ INACTIVO";
-            statusText.Foreground = feature.IsEnabled() ? Brushes.LightGreen : Brushes.LightCoral;
+        // Actualizar estado visual
+        statusText.Text = feature.IsEnabled() ? "✅ ACTIVO" : "❌ INACTIVO";
+        statusText.Foreground = feature.IsEnabled() ? Brushes.LightGreen : Brushes.LightCoral;
+    }
 
-            // Preguntar por reinicio
-            var reboot = MessageBox.Show("El cambio se ha aplicado. ¿Deseas reiniciar el equipo ahora para que surta efecto?",
-                                         "Reinicio necesario",
-                                         MessageBoxButton.YesNo,
-                                         MessageBoxImage.Question);
-            if (reboot == MessageBoxResult.Yes)
-            {
-                _checker.RebootSystem();
-            }
-        }
+    private void btnRebootNormal_Click(object sender, RoutedEventArgs e)
+    {
+        _checker.RebootSystem();
+    }
+
+    private void btnRebootAdvanced_Click(object sender, RoutedEventArgs e)
+    {
+        _checker.SetOneTimeAdvancedBoot();
+        _checker.RebootSystem();
     }
 
     private void btnClose_Click(object sender, RoutedEventArgs e)
